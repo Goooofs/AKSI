@@ -1,4 +1,5 @@
 import sys
+import struct
 
 class Leaf:
     def __init__(self, amount, symbol):			#__init__ вызовится при скобках
@@ -58,39 +59,69 @@ def huffman_compress(input, code_huf):	#передаём наш файл и ко
         enc_text += code_huf[ch]
     return enc_text
 
-def write_header(file, dict_symb):
-    col_letters = (len(dict_symb.keys())-1).to_bytes(1, byteorder='little')
-    file.write(col_letters)
-	
-	
+def raw_bytes(letter):
+    list_out = []
+    for c in letter:
+        n = ord(c)
+        if n < 256:
+            list_out.append(struct.pack('B', n))
+        elif n < 65535:
+            list_out.append(struct.pack('>H', n))
+        else:
+            b = (n & 0xFF0000) >> 16
+            H = n & 0xFFFF
+            list_out.append(struct.pack('>bH', b, H))
+    return b''.join(list_out)
+
+def write_header(file, dict_sym):
+	col_letters = (len(dict_sym.keys())-1).to_bytes(1, byteorder='little')
+	file.write(col_letters)
+	for letter, code in dict_sym.items():
+		file.write(raw_bytes(letter))
+		file.write(code.to_bytes(4, byteorder = 'little'))
+
 def input_file(filename_in):
 	f = open(filename_in, 'rb')
 	input = f.read()
 	f.close
 	return input
 
-def output_file(filename_out):
+def output_file_compr(filename_out, dict_sym, enc_text):
 	f = open(filename_out, 'wb')
 	f.write(b"HUF")
-
+	write_header(f, dict_sym)
+	extra_pad = 8 - len(enc_text) % 8
+	pad_enc_text = ''
+	for _ in range(extra_pad):
+		pad_enc_text += "0"
+	if (len(pad_enc_text) % 8 != 0):
+		print("Encoded text not padded")
+		exit(0)
+	b = bytearray()
+	for i in range(0, len(pad_enc_text), 8):
+		byte = pad_enc_text[i:i+8]
+		b.append(int(byte, 2))
+	out = b
+	f.write(bytes(out))
+	
 	f.close
 	
 def prompt():
 	text = print("[c]ompress or [d]ecompress? Enter name input file = <inpit_file> , Enter name output file = <output_file>")
 	return text
 
-def compress(myfile):
-	filename_in = sys.argv[1]
-	filename_out = sys.argv[2]
+def compress(myfile_in, myfile_out):
+	filename_in = myfile_in #sys.argv[1]
+	filename_out = myfile_out #sys.argv[2]
 	
 	input = input_file(filename_in)
 	dict_sym = symbols_counter(input)
 	leafs = sorted_leafs(dict_sym)
 	root_node = generate_tree(leafs)
 	code_huf = huffman_codes_gen(root_node)
-	enc_text = huffmun_compress(input, code_huf)
+	enc_text = huffman_compress(input, code_huf)
 	
-	output_file(filename_out)
+	output_file_compr(filename_out, dict_sym, enc_text)
 
 def decompress(myfile):
 	filename_in = sys.argv[1]
@@ -99,14 +130,25 @@ def decompress(myfile):
 	input = input_file(filename_in)
 
 if __name__ == '__main__':
-	prompt()
-	if(len(sys.argv) != 3):
-		prompt()
-	if(sys.argv[0] == 'c'):
-		compress()
-	elif(sys.argv[0] == 'd'):
-		decompress()
-	else: prompt()
+	#if(len(sys.argv) != 3):
+	#	prompt()
+	#	exit(0)
+	#if(sys.argv[0] == 'c'):
+	#	compress(sys.argv[1])
+	#elif(sys.argv[0] == 'd'):
+	#	decompress()
+	#else: prompt()
+	print("[c]ompress/[d]ecompress?")
+	arg1 = "c" #input()
+	print("input file")
+	arg2 = "text.txt" #input()
+	arg3 = "text.txt.enc"
+	if (arg1 == "c"):
+		compress(arg2, arg3)
+	elif (arg1 == "d"):
+		decompress(arg2, arg3)
+	else:
+		print("error!")
 	
 	
 
